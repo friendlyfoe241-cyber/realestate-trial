@@ -40,6 +40,11 @@
     overflow: hidden;
     background: #000;
     z-index: 9;
+    /* The iframe is display-only; it must NOT capture wheel/touch events,
+       otherwise the parent page can't keep scrolling while the canvas is
+       pinned and the sequence stalls then jumps. Letting events pass through
+       keeps the parent scroll (and thus progress) smooth. */
+    pointer-events: none;
   }
   #seq-embed-frame {
     position: absolute;
@@ -48,6 +53,7 @@
     border: 0; display: block;
     background: #000;
     z-index: 9;
+    pointer-events: none;
   }
   #seq-embed-host .seq-fallback {
     position: absolute; inset: 0;

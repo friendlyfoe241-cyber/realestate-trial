@@ -285,10 +285,54 @@ TEMPLATE = r"""<!DOCTYPE html>
     stage.style.height = "100%";
     stage.style.width = "100%";
 
-    let lastDrawn = -1;
+    // Smooth (scrubbed) frame chasing. The parent posts a target progress on
+    // every scroll; we ease the *displayed* frame toward it over ~0.6s, exactly
+    // like GSAP's `scrub: 0.6`. This is what gives the Apple AirPods feel —
+    // scroll position is followed, but never snapped, so there's no stutter
+    // and no abrupt first→last jump when the parent advances in coarse steps.
+    var SCRUB = 0.6;           // seconds to catch up to the target (tune up = lazier)
+    var target = 0;            // target frame index (float)
+    var shown = 0;             // currently rendered frame index (float)
+    var lastDrawn = -1;
+    var rafId = null;
+    var lastT = 0;
+
+    function clampFrame(v) { return Math.min(FRAME_COUNT - 1, Math.max(0, v)); }
+    function targetFromP(p) { return clampFrame(p * (FRAME_COUNT - 1)); }
+
+    function frame(now) {
+      rafId = null;
+      if (!lastT) lastT = now;
+      var dt = (now - lastT) / 1000;
+      lastT = now;
+      if (dt > 0.1) dt = 0.1;  // clamp tab-switch gaps
+
+      // Exponential approach: each frame moves a fraction of the remaining gap.
+      // k chosen so the catch-up is ~SCRUB seconds for a full-range move.
+      var k = 1 - Math.pow(0.0001, dt / SCRUB);
+      shown += (target - shown) * k;
+
+      var f = Math.round(shown);
+      if (f !== lastDrawn) {
+        lastDrawn = f;
+        currentFrame = f;
+        draw(f);
+      }
+      if (Math.abs(target - shown) > 0.01) {
+        rafId = requestAnimationFrame(frame);
+      } else {
+        // Snap exactly when close enough; redraw the precise target frame.
+        shown = target;
+        f = Math.round(shown);
+        if (f !== lastDrawn) { lastDrawn = f; currentFrame = f; draw(f); }
+      }
+    }
+    function chase() {
+      if (rafId === null) { lastT = 0; rafId = requestAnimationFrame(frame); }
+    }
     function renderProgress(p) {
-      const f = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(p * (FRAME_COUNT - 1))));
-      if (f !== lastDrawn) { lastDrawn = f; currentFrame = f; draw(f); }
+      var nt = targetFromP(p);
+      if (nt !== target) { target = nt; chase(); }
     }
 
     window.addEventListener("message", function (ev) {
