@@ -5,19 +5,21 @@
   WHERE TO PASTE:
     Wix Editor → Add (＋) → Embed → "Embed a widget" → "Embed HTML"
     → paste this whole snippet into the "HTML code" box.
-    Drag the element to where you want the sequence to begin, then set
-    the element HEIGHT to roughly 7× the screen height (e.g. 6000px) —
-    that tall height is the scroll distance the sequence scrubs through.
+    Drag the element to where you want the sequence to begin (e.g. just
+    below the WELCOME section). The iframe is 100vh tall (one screen);
+    the page INSIDE it creates ~7 screens of scroll, so the sequence
+    scrubs slowly as you scroll the wheel/touch over it, then the rest
+    of your Wix page continues normally.
 
   HOW IT WORKS:
-    It's just a normal, scrollable iframe pointing at the Vercel page.
-    That page runs GSAP/ScrollTrigger on its OWN document: as you scroll
-    the wheel/touch over the iframe, the iframe scrolls and the canvas
-    scrubs through all 250 frames (the Apple AirPods technique). No
-    postMessage bridge, no parent scripting — the iframe is a
-    self-contained player.
+    A normal, scrollable iframe pointing at the Vercel page. That page
+    runs GSAP/ScrollTrigger on its OWN document: when you scroll over the
+    iframe, the iframe scrolls itself and the canvas scrubs through all
+    250 frames (the Apple AirPods technique). No postMessage bridge, no
+    parent scripting — it's a self-contained player. If the embed looks
+    too short/tall, set the Wix element height to 100vh or ~900px.
 
-  Code size: ~1.4 KB (well under the 15,000 char limit).
+  Code size: ~1.5 KB (well under the 15,000 char limit).
   ============================================================
 -->
 
@@ -25,7 +27,7 @@
   #seq-embed-frame {
     display: block;
     width: 100%;
-    height: 100vh;          /* visible stage height; the inner page adds its own scroll distance */
+    height: 100vh;          /* visible stage = one screen; the inner page adds its own ~7× scroll distance */
     border: 0;
     background: #000;
   }
