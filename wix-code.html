@@ -1,0 +1,142 @@
+<!--
+  ============================================================
+  WIX CUSTOM CODE — Scroll-Linked Image Sequence (iframe embed)
+  ============================================================
+  Where to paste: Wix Editor → Settings → Custom Code → "Add Custom Code"
+  - Where to place code:  "Body — start"  (or "Body — end")
+  - Display on:          "All pages" (or pick the page with your section)
+  Code size:             ~5.2 KB (well under the 15,000 char limit)
+
+  This injects a responsive iframe that loads your Vercel-hosted sequence
+  (https://realestate-trial.vercel.app/) into a Wix section. The iframe is
+  100% width and 400vh tall — the page inside is itself scroll-linked, so
+  Wix visitors scroll through all 250 frames exactly like the standalone page.
+
+  To make it look like a native Wix section, add an empty HTML element/strip on
+  your Wix page where you want the sequence to appear; this code inserts the
+  iframe there. A placeholder div is used so the layout reserves space.
+  ============================================================
+-->
+
+<div id="seq-embed-host" style="position:relative;width:100%;max-width:100vw;margin:0 auto;background:#000;"></div>
+
+<style>
+  #seq-embed-host {
+    /* height reserved by JS (scroll distance + one viewport); black bg while loading */
+  }
+  #seq-embed-host iframe#seq-embed-frame {
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    border:0;
+    display:block;
+    background:#000;
+  }
+  #seq-embed-host .seq-fallback {
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:0.75rem;
+    color:#a1a1aa;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    text-align:center;
+    padding:1.5rem;
+    transition:opacity .5s ease;
+    pointer-events:none;
+    z-index:2;
+  }
+  #seq-embed-host .seq-fallback.hidden {
+    opacity:0;
+  }
+  #seq-embed-host .seq-fallback .spinner {
+    width:38px;height:38px;border-radius:50%;
+    border:3px solid rgba(255,255,255,.15);border-top-color:#fff;
+    animation:seq-spin .9s linear infinite;
+  }
+  #seq-embed-host .seq-fallback .label {
+    font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:#71717a;
+  }
+  @keyframes seq-spin{to{transform:rotate(360deg)}}
+</style>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- Configuration -------------------------------------------------------
+  var SRC = "https://realestate-trial.vercel.app/";
+  // Scroll distance inside the embedded page: 4x the viewport (matches the
+  // page's own #sequence-wrap height). Total height = this + one viewport.
+  var SCROLL_MULT = 4;
+  // -------------------------------------------------------------------------
+
+  var host = document.getElementById("seq-embed-host");
+  if (!host) return;
+
+  function vh() {
+    return Math.max(document.documentElement.clientHeight, window.innerHeight, 1);
+  }
+
+  // Set the host height so Wix reserves enough vertical space for the
+  // scroll-linked sequence (1 viewport of pinned content + SCROLL_MULT viewports
+  // of scroll distance).
+  function setHostHeight() {
+    host.style.height = (vh() * (SCROLL_MULT + 1)) + "px";
+  }
+  setHostHeight();
+
+  // Graceful fallback overlay (shown until the iframe signals it's ready, or
+  // until a safety timeout — whichever comes first).
+  var fallback =
+    '<div class="seq-fallback" id="seq-fallback">' +
+      '<div class="spinner"></div>' +
+      '<div class="label">Loading sequence</div>' +
+    '</div>';
+  host.insertAdjacentHTML("beforeend", fallback);
+  var fb = document.getElementById("seq-fallback");
+
+  // Build the iframe. loading="lazy" is avoided on purpose so the sequence
+  // preloads its frames immediately when the section scrolls into view.
+  var iframe = document.createElement("iframe");
+  iframe.id = "seq-embed-frame";
+  iframe.title = "Scroll Image Sequence";
+  iframe.src = SRC;
+  iframe.allow = "fullscreen";
+  iframe.setAttribute("loading", "eager");
+  iframe.referrerPolicy = "no-referrer-when-downgrade";
+
+  iframe.addEventListener("load", function () {
+    // The inner page fires load only after its 250 frames finish preloading
+    // (data URIs are inline, so the iframe load event covers the frames).
+    fb.classList.add("hidden");
+    setTimeout(function () { if (fb && fb.parentNode) fb.parentNode.removeChild(fb); }, 600);
+  });
+
+  // Safety fallback: if the iframe hasn't reported load within 25s (slow
+  // connection / Vercel cold start), hide the spinner but keep the section so
+  // visitors can still scroll the iframe content once it arrives.
+  setTimeout(function () {
+    if (fb && !fb.classList.contains("hidden")) {
+      fb.classList.add("hidden");
+      setTimeout(function () { if (fb && fb.parentNode) fb.parentNode.removeChild(fb); }, 600);
+    }
+  }, 25000);
+
+  host.appendChild(iframe);
+
+  // Keep the reserved height correct on resize / orientation change (debounced).
+  var t;
+  window.addEventListener("resize", function () {
+    clearTimeout(t);
+    t = setTimeout(setHostHeight, 150);
+  });
+  window.addEventListener("orientationchange", function () {
+    setTimeout(setHostHeight, 200);
+  });
+})();
+</script>
