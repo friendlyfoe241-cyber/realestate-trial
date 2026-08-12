@@ -268,6 +268,43 @@ TEMPLATE = r"""<!DOCTYPE html>
     draw(0);
   }
 
+  /* ---------------- Embedded mode (driven by parent via postMessage) -------
+     When this page is loaded inside an <iframe> (e.g. on a Wix site), the
+     parent page owns the scroll. The iframe's own window scroll never moves,
+     so ScrollTrigger's progress would be stuck at 0. Instead we listen for a
+     "seq:progress" message carrying a 0..1 progress value from the parent,
+     and render the matching frame directly. The stage stays pinned/fixed in
+     the iframe box, and the parent keeps the box fixed on screen while it
+     drives the scroll distance. */
+  function buildEmbeddedMode() {
+    // No big wrap height needed inside the iframe; the box is sized by parent.
+    wrap.style.height = "100%";
+    // Make the stage fill the iframe box and pin via simple fixed positioning.
+    stage.style.position = "fixed";
+    stage.style.inset = "0";
+    stage.style.height = "100%";
+    stage.style.width = "100%";
+
+    let lastDrawn = -1;
+    function renderProgress(p) {
+      const f = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(p * (FRAME_COUNT - 1))));
+      if (f !== lastDrawn) { lastDrawn = f; currentFrame = f; draw(f); }
+    }
+
+    window.addEventListener("message", function (ev) {
+      if (!ev || !ev.data) return;
+      var d = ev.data;
+      if (typeof d === "string") { try { d = JSON.parse(d); } catch (e) { return; } }
+      if (d && d.type === "seq:progress" && typeof d.p === "number") {
+        renderProgress(d.p);
+      }
+    });
+
+    // First paint.
+    setupCanvas();
+    draw(0);
+  }
+
   /* ---------------- Boot ---------------- */
   function hideLoader() {
     loader.classList.add("hidden");
@@ -275,7 +312,19 @@ TEMPLATE = r"""<!DOCTYPE html>
   }
 
   preload().then(function (allLoaded) {
-    buildScrollAnimation();
+    // If we're inside an iframe, the parent page drives progress via
+    // postMessage; otherwise run the standalone ScrollTrigger timeline.
+    // Detection: either we're clearly framed, or the parent explicitly
+    // requested embed mode via ?embed=1 (some embedding environments mask
+    // window.top access, so the URL flag is the reliable signal).
+    var isFramed = false;
+    try { isFramed = (window.self !== window.top); } catch (e) { isFramed = true; }
+    var embedFlag = /[?&]embed=1\b/.test(window.location.search);
+    if (isFramed || embedFlag) {
+      buildEmbeddedMode();
+    } else {
+      buildScrollAnimation();
+    }
     hideLoader();
     if (!allLoaded) {
       // Some frames failed; the timeline still works on the ones that loaded.
