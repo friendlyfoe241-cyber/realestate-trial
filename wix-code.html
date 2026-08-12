@@ -1,159 +1,37 @@
 <!--
   ============================================================
-  WIX EMBED CODE — Scroll-Linked Image Sequence (parent driver)
+  WIX EMBED CODE — Scroll-Linked Image Sequence (simple iframe)
   ============================================================
   WHERE TO PASTE:
     Wix Editor → Add (＋) → Embed → "Embed a widget" → "Embed HTML"
     → paste this whole snippet into the "HTML code" box.
-    Drag the element to where you want the sequence to begin.
-    IMPORTANT: set the element HEIGHT to the full SCROLL DISTANCE you want
-    (e.g. 3000–4000px). The sequence is pinned ("sticky") for one viewport
-    inside that height and scrubs through all 250 frames as you scroll past.
+    Drag the element to where you want the sequence to begin, then set
+    the element HEIGHT to roughly 7× the screen height (e.g. 6000px) —
+    that tall height is the scroll distance the sequence scrubs through.
 
   HOW IT WORKS:
-    The Vercel page (https://realestate-trial.vercel.app/) is loaded in an
-    iframe. A postMessage bridge sends the parent's scroll progress (0..1) to
-    the iframe, which renders the matching frame. This is necessary because
-    the iframe's own internal scroll never moves when you scroll the Wix page,
-    so GSAP/ScrollTrigger inside the iframe alone can't react to Wix scroll.
-    We compute progress from this sticky element's position and drive it.
+    It's just a normal, scrollable iframe pointing at the Vercel page.
+    That page runs GSAP/ScrollTrigger on its OWN document: as you scroll
+    the wheel/touch over the iframe, the iframe scrolls and the canvas
+    scrubs through all 250 frames (the Apple AirPods technique). No
+    postMessage bridge, no parent scripting — the iframe is a
+    self-contained player.
 
-  Code size: ~5.8 KB (well under the 15,000 char limit).
+  Code size: ~1.4 KB (well under the 15,000 char limit).
   ============================================================
 -->
 
 <style>
-  #seq-embed-host {
-    position: relative;
-    width: 100%;
-    background: #000;
-    overflow: hidden;
-    z-index: 9;
-  }
-  #seq-embed-stage {
-    position: sticky;
-    position: -webkit-sticky;
-    top: 0;
-    height: 100vh;
-    height: 100dvh;
-    width: 100%;
-    overflow: hidden;
-    background: #000;
-    z-index: 9;
-    /* The iframe is display-only; it must NOT capture wheel/touch events,
-       otherwise the parent page can't keep scrolling while the canvas is
-       pinned and the sequence stalls then jumps. Letting events pass through
-       keeps the parent scroll (and thus progress) smooth. */
-    pointer-events: none;
-  }
   #seq-embed-frame {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    border: 0; display: block;
+    display: block;
+    width: 100%;
+    height: 100vh;          /* visible stage height; the inner page adds its own scroll distance */
+    border: 0;
     background: #000;
-    z-index: 9;
-    pointer-events: none;
   }
-  #seq-embed-host .seq-fallback {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 0.75rem; color: #a1a1aa;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    text-align: center; padding: 1.5rem;
-    transition: opacity 0.5s ease; pointer-events: none; z-index: 10;
-  }
-  #seq-embed-host .seq-fallback.hidden { opacity: 0; }
-  #seq-embed-host .seq-fallback .spinner {
-    width: 38px; height: 38px; border-radius: 50%;
-    border: 3px solid rgba(255,255,255,.15); border-top-color: #fff;
-    animation: seq-spin 0.9s linear infinite;
-  }
-  #seq-embed-host .seq-fallback .label {
-    font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: #71717a;
-  }
-  @keyframes seq-spin { to { transform: rotate(360deg); } }
 </style>
 
-<div id="seq-embed-host">
-  <div id="seq-embed-stage">
-    <iframe id="seq-embed-frame" title="Scroll Image Sequence"
-      src="https://realestate-trial.vercel.app/?embed=1" allow="fullscreen"
-      loading="eager" scrolling="no" referrerpolicy="no-referrer-when-downgrade"></iframe>
-    <div class="seq-fallback" id="seq-fallback">
-      <div class="spinner"></div>
-      <div class="label">Loading sequence</div>
-    </div>
-  </div>
-</div>
-
-<script>
-(function () {
-  "use strict";
-
-  var host = document.getElementById("seq-embed-host");
-  var iframe = document.getElementById("seq-embed-frame");
-  var fb = document.getElementById("seq-fallback");
-  if (!host || !iframe) return;
-
-  // ---- Scroll distance: how much Wix scroll equals the full 250-frame scrub.
-  // Defaults to 4 viewports. You can override by editing the host height in
-  // the Wix element settings; we just read it back live.
-  function setDefaultHeight() {
-    if (!host.style.height) {
-      var vh = Math.max(document.documentElement.clientHeight, window.innerHeight, 1);
-      host.style.height = Math.round(vh * 4) + "px";
-    }
-  }
-  setDefaultHeight();
-
-  // ---- Compute progress 0..1 from the host's position relative to viewport.
-  function progress() {
-    var rect = host.getBoundingClientRect();
-    var vh = Math.max(document.documentElement.clientHeight, window.innerHeight, 1);
-    // Start when the top of the (pinned) stage reaches the top of the viewport;
-    // finish when the bottom of the host reaches the bottom of the viewport.
-    var start = 0;
-    var end = Math.max(1, rect.height - vh);
-    var p = (start - rect.top) / end;
-    if (p < 0) p = 0;
-    if (p > 1) p = 1;
-    return p;
-  }
-
-  // ---- Send progress to the iframe (throttled to animation frames).
-  var pending = false;
-  var lastP = -1;
-  function send() {
-    pending = false;
-    var p = progress();
-    if (p === lastP) return;
-    lastP = p;
-    var msg = JSON.stringify({ type: "seq:progress", p: p });
-    try { iframe.contentWindow.postMessage(msg, "*"); } catch (e) {}
-  }
-  function onScroll() {
-    if (!pending) { pending = true; requestAnimationFrame(send); }
-  }
-
-  window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", onScroll, { passive: true });
-
-  // Initial send once the iframe is ready.
-  iframe.addEventListener("load", function () {
-    if (fb) {
-      fb.classList.add("hidden");
-      setTimeout(function () { if (fb && fb.parentNode) fb.parentNode.removeChild(fb); }, 600);
-    }
-    send();
-  });
-
-  // Safety: hide spinner after 25s on slow/cold starts.
-  setTimeout(function () {
-    if (fb && !fb.classList.contains("hidden")) {
-      fb.classList.add("hidden");
-      setTimeout(function () { if (fb && fb.parentNode) fb.parentNode.removeChild(fb); }, 600);
-    }
-  }, 25000);
-})();
-</script>
+<iframe id="seq-embed-frame" title="Scroll Image Sequence"
+  src="https://realestate-trial.vercel.app/"
+  loading="eager" referrerpolicy="no-referrer-when-downgrade"
+  allow="fullscreen"></iframe>

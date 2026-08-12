@@ -232,15 +232,16 @@ TEMPLATE = r"""<!DOCTYPE html>
     const frameObj = { frame: 0 };
     let lastDrawn = -1;
 
-    // Scroll distance: 4x the viewport height gives a comfortable scrub length.
-    wrap.style.height = (window.innerHeight * 4) + "px";
+    // Scroll distance: 7x viewport height = a slow, luxurious scrub through
+    // all 250 frames (more scroll distance = slower frame advance).
+    wrap.style.height = (window.innerHeight * 7) + "px";
 
     const tl = gsap.timeline({
       scrollTrigger: {
         trigger: wrap,
         start: "top top",
         end: "bottom bottom",
-        scrub: 0.6,                 // smooth, no stutter; tune up for snappier scrub
+        scrub: 1.2,                 // heavier smoothing = slow, graceful, no stutter
         pin: stage,                 // pin the canvas stage while scrubbing
         anticipatePin: 1,
         invalidateOnRefresh: true,
@@ -257,7 +258,7 @@ TEMPLATE = r"""<!DOCTYPE html>
     window.addEventListener("resize", function () {
       clearTimeout(rT);
       rT = setTimeout(function () {
-        wrap.style.height = (window.innerHeight * 4) + "px";
+        wrap.style.height = (window.innerHeight * 7) + "px";
         setupCanvas();
         ScrollTrigger.refresh();
       }, 150);
@@ -290,7 +291,7 @@ TEMPLATE = r"""<!DOCTYPE html>
     // like GSAP's `scrub: 0.6`. This is what gives the Apple AirPods feel —
     // scroll position is followed, but never snapped, so there's no stutter
     // and no abrupt first→last jump when the parent advances in coarse steps.
-    var SCRUB = 0.6;           // seconds to catch up to the target (tune up = lazier)
+    var SCRUB = 1.2;           // seconds to catch up to the target (tune up = lazier)
     var target = 0;            // target frame index (float)
     var shown = 0;             // currently rendered frame index (float)
     var lastDrawn = -1;
@@ -356,15 +357,13 @@ TEMPLATE = r"""<!DOCTYPE html>
   }
 
   preload().then(function (allLoaded) {
-    // If we're inside an iframe, the parent page drives progress via
-    // postMessage; otherwise run the standalone ScrollTrigger timeline.
-    // Detection: either we're clearly framed, or the parent explicitly
-    // requested embed mode via ?embed=1 (some embedding environments mask
-    // window.top access, so the URL flag is the reliable signal).
-    var isFramed = false;
-    try { isFramed = (window.self !== window.top); } catch (e) { isFramed = true; }
+    // Choose the scroll driver. We NO LONGER auto-switch on "am I in an iframe?",
+    // because a plain scrollable iframe (the simple embed) must run its own
+    // ScrollTrigger on its own document — that's what makes it scrub when you
+    // scroll the wheel over it. Only the explicit ?embed=1 flag selects the
+    // postMessage-driven embedded mode (used by the parent-driver variant).
     var embedFlag = /[?&]embed=1\b/.test(window.location.search);
-    if (isFramed || embedFlag) {
+    if (embedFlag) {
       buildEmbeddedMode();
     } else {
       buildScrollAnimation();
