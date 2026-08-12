@@ -56,23 +56,13 @@ TEMPLATE = r"""<!DOCTYPE html>
 <title>Scroll Image Sequence</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
   html{scroll-behavior:auto}
   body{
-    background:#0b0b0d;color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:#000;
     -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
   }
-
-  /* ---------- Intro / outro sections (regular scroll) ---------- */
-  section.intro,section.outro{
-    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:2rem;position:relative;
-  }
-  section.intro h1{font-size:clamp(2rem,7vw,4.5rem);font-weight:700;letter-spacing:-.02em;line-height:1.05}
-  section.intro p{margin-top:1rem;max-width:42ch;color:#a1a1aa;font-size:clamp(1rem,2.4vw,1.25rem)}
-  section.outro h2{font-size:clamp(1.6rem,5vw,3rem);font-weight:700}
-  section.outro p{margin-top:1rem;max-width:46ch;color:#a1a1aa;font-size:clamp(.95rem,2.2vw,1.15rem)}
-  .scroll-hint{margin-top:2.5rem;color:#71717a;font-size:.9rem;letter-spacing:.18em;text-transform:uppercase;animation:bob 1.8s ease-in-out infinite}
-  @keyframes bob{0%,100%{transform:translateY(0);opacity:.6}50%{transform:translateY(6px);opacity:1}}
 
   /* ---------- Pinned sequence stage ---------- */
   #sequence-wrap{
@@ -123,12 +113,6 @@ TEMPLATE = r"""<!DOCTYPE html>
 </head>
 <body>
 
-<section class="intro">
-  <h1>Scroll to animate</h1>
-  <p>A frame-by-frame image sequence, scrubbed by your scroll position &mdash; the Apple AirPods technique.</p>
-  <div class="scroll-hint">Scroll down</div>
-</section>
-
 <div id="sequence-wrap">
   <div id="sequence-stage">
     <canvas id="sequence-canvas"></canvas>
@@ -141,11 +125,6 @@ TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
 </div>
-
-<section class="outro">
-  <h2>That&rsquo;s the sequence</h2>
-  <p>Keep scrolling for the rest of your page content.</p>
-</section>
 
 <!-- GSAP + ScrollTrigger -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
