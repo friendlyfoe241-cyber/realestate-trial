@@ -47,6 +47,22 @@ own document and scrubs correctly.
   `wix-code.html` into Wix.
 - Wix embed char limit is 15,000; `wix-code.html` is ~1.5 KB.
 
+## Parent scroll-lock (center the animation, freeze Wix while it plays)
+- Problem: the cross-origin iframe + Wix page are two separate scroll bodies;
+  crossing the cursor between them leaves one half-visible.
+- Constraint: a cross-origin iframe CANNOT touch the parent scroll, so the lock
+  can't live solely inside the iframe.
+- Solution (two pieces):
+  1. `generate.py` `buildScrollAnimation()`: ScrollTrigger `onUpdate` posts
+     `seqProgress` 0..1 to `window.parent` via `postMessage` (throttled ~90ms),
+     + a final `seqProgress:1` on `onComplete`. Only cross-origin-safe channel.
+  2. `wix-scroll-lock.html` (paste in Wix Settings → Custom Code, page-level):
+     locks Wix document scroll (`overflow:hidden` + `body{position:fixed}`)
+     while `0.06 <= p < 0.985`; releases on finish, scroll-back-before-start,
+     Escape key, 6s stale-message, or embed scrolled fully offscreen.
+- Lock/unlock state machine validated with a synthetic postMessage test
+  (7/7 cases including scroll-back release).
+
 ## Local test harness
 Serve with `python3 -m http.server 12000` (proxied at
 `https://work-1-briloyymccwchcoy.prod-runtime.all-hands.dev/`). To test the
