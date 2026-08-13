@@ -1,0 +1,92 @@
+<!--
+  ============================================================
+  WIX SCROLL-LOCK SNIPPET (paste in: Settings → Custom Code →
+  "Site code" or "Page code", footer/body end)
+  ============================================================
+  WHAT IT DOES:
+    When the scroll image-sequence embed (the Vercel iframe) enters the
+    viewport and becomes centered/full-screen, this locks the Wix page
+    scroll so the embed can play cleanly to the end. When the sequence
+    finishes, it releases the lock so the page continues normally. This
+    fixes the "two separate scroll bodies / half-visible animation"
+    problem you saw.
+
+  PAIRING:
+    This pairs with postMessages the Vercel page now emits (seqProgress 0..1).
+    It only acts on the iframe whose src contains "realestate-trial.vercel.app".
+
+  SAFETY:
+    - Escape key always releases the lock (failsafe).
+    - If no progress message arrives for 6s, the lock auto-releases.
+    - Touch users: the iframe still scrubs (it has its own scroll); the lock
+      just stops the Wix page from drifting while the embed is centered.
+  ============================================================
+-->
+
+<script>
+(function () {
+  "use strict";
+  var SEQ_SRC = "realestate-trial.vercel.app";
+  var ENTER_PROG = 0.06;   // lock once sequence is ~6% played (embed centered)
+  var EXIT_PROG  = 0.985;  // unlock once sequence ~98% done
+  var STALE_MS   = 6000;   // auto-unlock if no message for this long
+
+  var frame = null, locked = false, lastMsgAt = 0, lastProgress = 0;
+
+  function findFrame() {
+    if (frame) return frame;
+    var fs = document.getElementsByTagName("iframe");
+    for (var i = 0; i < fs.length; i++) {
+      if (fs[i].src && fs[i].src.indexOf(SEQ_SRC) !== -1) { frame = fs[i]; return frame; }
+    }
+    return null;
+  }
+
+  function lock() {
+    if (locked) return;
+    locked = true;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";      // freeze the page in place
+    document.body.style.left = "0"; document.body.style.right = "0"; document.body.style.width = "100%";
+  }
+  function unlock() {
+    if (!locked) return;
+    locked = false;
+    document.documentElement.style.overflow = "";
+    document.body.style.overflow = "";
+    document.body.style.position = "";
+    document.body.style.left = ""; document.body.style.right = ""; document.body.style.width = "";
+  }
+
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (!d || typeof d.seqProgress !== "number") return;
+    lastMsgAt = Date.now();
+    lastProgress = d.seqProgress;
+    if (lastProgress >= ENTER_PROG && lastProgress < EXIT_PROG) {
+      if (!findFrame()) return;
+      lock();
+    } else {
+      // Either finished (>= EXIT_PROG) or scrolled back before the start
+      // (< ENTER_PROG). Both must release the lock.
+      unlock();
+    }
+  });
+
+  // If the user scrolls the Wix page far away from the embed, release.
+  window.addEventListener("scroll", function () {
+    var f = findFrame();
+    if (!f || !locked) return;
+    var r = f.getBoundingClientRect();
+    // If the embed is completely off-screen while locked, bail out.
+    if (r.bottom < 0 || r.top > window.innerHeight) unlock();
+  }, { passive: true });
+
+  // Failsafes: Escape key + stale-message timeout.
+  window.addEventListener("keydown", function (e) { if (e.key === "Escape") unlock(); });
+  setInterval(function () {
+    if (locked && (Date.now() - lastMsgAt > STALE_MS)) unlock();
+  }, 1000);
+})();
+</script>

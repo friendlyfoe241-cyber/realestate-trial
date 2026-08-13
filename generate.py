@@ -231,6 +231,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 
     const frameObj = { frame: 0 };
     let lastDrawn = -1;
+    let lastPost = 0;
 
     // Scroll distance: 7x viewport height = a slow, luxurious scrub through
     // all 250 frames (more scroll distance = slower frame advance).
@@ -248,8 +249,25 @@ TEMPLATE = r"""<!DOCTYPE html>
         onUpdate: function () {
           const f = Math.min(FRAME_COUNT - 1, Math.max(0, Math.round(frameObj.frame)));
           if (f !== lastDrawn) { lastDrawn = f; currentFrame = f; draw(f); }
+          // Tell the parent page (e.g. Wix) how far the sequence has played,
+          // so it can lock its own scroll while the embed is centered and
+          // release it once the sequence finishes. postMessage is the only
+          // cross-origin-safe channel from inside an iframe. Throttled.
+          var self = this;
+          var now = (typeof performance !== "undefined" ? performance.now() : Date.now());
+          if (now - lastPost > 90) {
+            lastPost = now;
+            var p = Math.max(0, Math.min(1, self.progress));
+            try { window.parent.postMessage({ seqProgress: p }, "*"); } catch (e) {}
+          }
         }
       }
+    });
+
+    // When the sequence finishes (or scrolls back before start), tell the parent
+    // so it can release its scroll lock. onLeaveBack also releases on scroll-up.
+    tl.eventCallback("onComplete", function () {
+      try { window.parent.postMessage({ seqProgress: 1 }, "*"); } catch (e) {}
     });
     tl.to(frameObj, { frame: FRAME_COUNT - 1, ease: "none" });
 
