@@ -49,19 +49,35 @@ own document and scrubs correctly.
 
 ## Parent scroll-lock (center the animation, freeze Wix while it plays)
 - Problem: the cross-origin iframe + Wix page are two separate scroll bodies;
-  crossing the cursor between them leaves one half-visible.
-- Constraint: a cross-origin iframe CANNOT touch the parent scroll, so the lock
-  can't live solely inside the iframe.
-- Solution (two pieces):
-  1. `generate.py` `buildScrollAnimation()`: ScrollTrigger `onUpdate` posts
-     `seqProgress` 0..1 to `window.parent` via `postMessage` (throttled ~90ms),
-     + a final `seqProgress:1` on `onComplete`. Only cross-origin-safe channel.
-  2. `wix-scroll-lock.html` (paste in Wix Settings → Custom Code, page-level):
-     locks Wix document scroll (`overflow:hidden` + `body{position:fixed}`)
-     while `0.06 <= p < 0.985`; releases on finish, scroll-back-before-start,
-     Escape key, 6s stale-message, or embed scrolled fully offscreen.
-- Lock/unlock state machine validated with a synthetic postMessage test
-  (7/7 cases including scroll-back release).
+  the embed is a short band (~771px on the live site) but needs ~7× its own
+  viewport of internal scroll to play. Crossing the cursor between iframe and
+  page leaves one half-visible / stuck mid-frame.
+- CONSTRAINT #1: a cross-origin iframe CANNOT touch the parent scroll, so the
+  lock can't live solely inside the iframe.
+- CONSTRAINT #2: Custom Code in Settings runs in the top page, but Wix does
+  NOT scroll on `document.body` like a normal page (its own nested scroll
+  container + JS), so `overflow:hidden`/`position:fixed` on body is IGNORED.
+  → `wix-scroll-lock.html` (the body-style snippet) was CONFIRMED BROKEN on
+  Wix and removed. Do NOT go back to manipulating body styles.
+- CORRECT solution = Wix Velo page code (`wix-velo-page-code.js`), using
+  Wix-native APIs that actually work in the sandbox:
+  1. `generate.py` `buildScrollAnimation()` (inside the iframe, already
+     deployed): ScrollTrigger `onUpdate` posts `seqProgress` 0..1 to
+     `window.parent` via `postMessage` (throttled ~90ms) + final `1` on
+     `onComplete`. A "website"-type HtmlComponent receives this via
+     `$w('#html').onMessage()` as `event.data`.
+  2. `wix-velo-page-code.js` (paste in Wix Page Code panel, runs in top doc):
+     - `$w(EMBED).onViewportEnter()` → `$w(EMBED).scrollTo()` snaps the embed
+       to the top so the animation starts full-screen (no half-visible).
+     - `$w(EMBED).onMessage()` reads `seqProgress`: marks "playing" while
+       0.06 ≤ p < 0.98; on p ≥ 0.98 calls `$w(NEXT).scrollTo()` to continue
+       the Wix page past the embed; on p < 0.06 (scroll-back) releases.
+     - Failsafe: if no message for 8s while "playing", release.
+- CRITICAL setup requirement: the HTML component must be ~100vh tall in the
+  editor (NOT a short band). With a 100vh component snapped to top, the iframe
+  fills the viewport → the cursor is over it for the whole play → the iframe's
+  internal scroll drives the animation cleanly (this is what removes the jank).
+  The live site had it at ~771px — must be raised to full viewport height.
 
 ## Local test harness
 Serve with `python3 -m http.server 12000` (proxied at
